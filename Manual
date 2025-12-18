@@ -1,0 +1,1368 @@
+import React, { useState, useEffect } from 'react';
+import { Save, Download, Upload, ChevronDown, ChevronRight, CheckCircle2, Circle, Info, Send, User, Users } from 'lucide-react';
+
+const CourseBuildManual = () => {
+  const [snapshot, setSnapshot] = useState({
+    courseName: '',
+    termDates: '',
+    instructors: '',
+    designer: '',
+    canvasLink: '',
+    modality: '',
+    buildStart: '',
+    targetReady: '',
+    notes: ''
+  });
+
+  const [tasks, setTasks] = useState({});
+  const [expandedSections, setExpandedSections] = useState({});
+  const [expandedTasks, setExpandedTasks] = useState({});
+  const [saveStatus, setSaveStatus] = useState('');
+  const [newMessage, setNewMessage] = useState({});
+  const [userRole, setUserRole] = useState('instructor');
+  const [filterPhase, setFilterPhase] = useState('all');
+  const [filterOwner, setFilterOwner] = useState('all');
+  const [showKickoffAgenda, setShowKickoffAgenda] = useState(false);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const snapshotResult = await window.storage.get('course-snapshot');
+      const tasksResult = await window.storage.get('course-tasks');
+      const roleResult = await window.storage.get('user-role');
+      
+      if (snapshotResult?.value) {
+        setSnapshot(JSON.parse(snapshotResult.value));
+      }
+      if (tasksResult?.value) {
+        setTasks(JSON.parse(tasksResult.value));
+      }
+      if (roleResult?.value) {
+        setUserRole(roleResult.value);
+      }
+    } catch (error) {
+      console.log('No saved data found or error loading:', error);
+    }
+  };
+
+  const saveData = async () => {
+    try {
+      await window.storage.set('course-snapshot', JSON.stringify(snapshot));
+      await window.storage.set('course-tasks', JSON.stringify(tasks));
+      await window.storage.set('user-role', userRole);
+      setSaveStatus('✓ Saved');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (error) {
+      setSaveStatus('✗ Save failed');
+      console.error('Save error:', error);
+    }
+  };
+
+  const updateSnapshot = (field, value) => {
+    setSnapshot(prev => ({ ...prev, [field]: value }));
+  };
+
+  const updateTask = (taskId, field, value) => {
+    setTasks(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [field]: value }
+    }));
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const toggleTaskDetails = (taskId) => {
+    setExpandedTasks(prev => ({ ...prev, [taskId]: !prev[taskId] }));
+  };
+
+  const sendMessage = (taskId) => {
+    const message = newMessage[taskId];
+    if (!message || !message.trim()) return;
+
+    const messages = tasks[taskId]?.messages || [];
+    const newMsg = {
+      id: Date.now(),
+      text: message,
+      role: userRole,
+      timestamp: new Date().toISOString()
+    };
+
+    updateTask(taskId, 'messages', [...messages, newMsg]);
+    setNewMessage(prev => ({ ...prev, [taskId]: '' }));
+  };
+
+  const exportData = () => {
+    const data = { snapshot, tasks, exportDate: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `course-build-${snapshot.courseName || 'manual'}-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  };
+
+  const importData = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.snapshot) setSnapshot(data.snapshot);
+        if (data.tasks) setTasks(data.tasks);
+        saveData();
+      } catch (error) {
+        alert('Error importing file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const sections = [
+    {
+      id: 'overview',
+      title: '1. Course Overview & Info',
+      tasks: [
+        { 
+          id: 'modality', 
+          title: 'Add/confirm course modality statement', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Sets expectations for participation and helps learners plan.',
+          done: 'Course information area and/or syllabus clearly states modality and participation expectations.',
+          oscqr: '1.8'
+        },
+        { 
+          id: 'welcome', 
+          title: 'Create Welcome/Home page', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Kickoff',
+          why: 'Learners know who you are, how to get help, and what the course is about on day 1.',
+          done: 'Home page published and set as Front Page; includes course description, instructor bio, contact info, response-time expectations, and Aggie Honor Code statement.',
+          oscqr: '1.1, 1.10, 1.11'
+        },
+        { 
+          id: 'starthere', 
+          title: "Create 'Start Here' module (first module)", 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Kickoff',
+          why: 'Reduces confusion and supports a smooth start.',
+          done: 'Start Here module is first in Modules list and published.',
+          oscqr: '1.1, 1.2'
+        },
+        { 
+          id: 'orientation', 
+          title: 'Add course orientation page', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Kickoff',
+          why: 'Helps learners find what they need without emailing for directions.',
+          done: 'Orientation page exists (Start Here) and includes navigation + due-date guidance (how to navigate, where to start each week, and where to find due dates/grades).',
+          oscqr: '1.3, 1.2'
+        },
+        { 
+          id: 'succeed', 
+          title: "Post 'How to succeed in this course' page", 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Promotes self-regulation and reduces avoidable issues.',
+          done: 'Page published with expected weekly time, participation norms (workload, study tips, communication norms), and how to ask for help.',
+          oscqr: '1.2, 5.39'
+        },
+        { 
+          id: 'resources', 
+          title: 'Provide learner success resource links', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Build',
+          why: 'Directs students to support early, not after they fall behind.',
+          done: 'Links are present in Start Here or Course Info (tech help, orientation, tutoring, library); all links work.',
+          oscqr: '1.7'
+        },
+        { 
+          id: 'policies', 
+          title: 'Include institutional policy links', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Build',
+          why: 'Meets policy requirements and clarifies learner rights/responsibilities.',
+          done: 'Policy links included and functioning in Canvas (academic integrity, disability accommodations, grievances, etc.).',
+          oscqr: '1.6'
+        },
+        { 
+          id: 'syllabus', 
+          title: 'Provide printable syllabus', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves access and reduces navigation barriers.',
+          done: 'Syllabus page contains an accessible downloadable version (PDF or accessible HTML).',
+          oscqr: '1.5'
+        },
+        { 
+          id: 'communication', 
+          title: 'Set instructor communication expectations', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Supports predictability and helps satisfy interaction expectations.',
+          done: 'Expectations stated in Start Here/syllabus and visible to students (how often announcements, email response time, office hours).',
+          oscqr: '5.38',
+          rsi: 'Align with Regular & Substantive Interaction guidance: https://oscqr.suny.edu/rsi/'
+        },
+        { 
+          id: 'published', 
+          title: 'Confirm course published on time', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Pre-launch QA',
+          why: 'Ensures learners can start without access issues.',
+          done: 'Course published (or scheduled) and key content is available as planned; student access dates are correct.',
+          oscqr: ''
+        }
+      ]
+    },
+    {
+      id: 'technology',
+      title: '2. Technology & Tools',
+      tasks: [
+        { 
+          id: 'tech-requirements', 
+          title: 'List required hardware/software', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Prevents students from being blocked by tool issues.',
+          done: 'Requirements and support contacts posted in Start Here or Syllabus (any special access needs and where students get tech support).',
+          oscqr: '1.9, 2.11'
+        },
+        { 
+          id: 'tech-skills', 
+          title: 'State required skills for key tools', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Reduces cognitive load and support tickets.',
+          done: 'Skills list posted (Canvas, publisher site, external tools) + at least one help link/resource per tool.',
+          oscqr: '2.11'
+        },
+        { 
+          id: 'tech-practice', 
+          title: 'Scaffold technical skills with practice', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Lets learners practice before graded work.',
+          done: 'Low-stakes practice activity published in Start Here or Module 1 (e.g., intro discussion, sample quiz).',
+          oscqr: '2.12, 6.47'
+        },
+        { 
+          id: 'tech-access', 
+          title: 'Ensure tools easy to access', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Build',
+          why: 'Improves usability and reduces confusion.',
+          done: 'Frequently used tools are consistently accessible (single link location, consistent placement).',
+          oscqr: '2.13'
+        },
+        { 
+          id: 'tech-cleanup', 
+          title: 'Remove unused navigation items', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Pre-launch QA',
+          why: 'Reduces clutter and mis-clicks.',
+          done: 'Only needed items remain in Canvas course menu.',
+          oscqr: '2.13'
+        },
+        { 
+          id: 'tech-privacy', 
+          title: 'Add privacy policy links for tools', 
+          time: '0.5-2h', 
+          owner: 'Designer',
+          when: 'Build',
+          why: 'Supports informed consent and compliance.',
+          done: 'Privacy links available in Start Here or Tool info page for all external tools.',
+          oscqr: '2.14'
+        },
+        { 
+          id: 'tech-accessibility', 
+          title: 'Confirm tools meet accessibility', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Pre-launch QA',
+          why: 'Reduces accessibility barriers and risk.',
+          done: 'Tool list reviewed; all tools meet accessibility expectations and are authorized for use (per TAMU guidance); any issues flagged with an alternative plan.',
+          oscqr: '2.15'
+        }
+      ]
+    },
+    {
+      id: 'design',
+      title: '3. Design & Layout',
+      tasks: [
+        { 
+          id: 'design-structure', 
+          title: 'Use consistent module structure', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Improves navigation and reduces extraneous load.',
+          done: 'Each module follows an agreed structure with consistent headings (e.g., Overview → Learn → Practice → Submit → Wrap-up).',
+          oscqr: '1.2, 3.16'
+        },
+        { 
+          id: 'design-naming', 
+          title: 'Use consistent naming conventions', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Helps learners locate and prioritize tasks.',
+          done: "Module and item names are consistent with clear labels and tags (e.g., 'Lecture', 'Practice', 'Quiz', 'Discussion').",
+          oscqr: '1.3'
+        },
+        { 
+          id: 'design-chunking', 
+          title: 'Chunk content into sections', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves comprehension and reduces overwhelm.',
+          done: 'Pages use headings and sections; long content is split into manageable sections (avoid long scrolling pages without structure).',
+          oscqr: '3.17, 4.36'
+        },
+        { 
+          id: 'design-proofread', 
+          title: 'Proofread grammar/spelling', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Pre-launch QA',
+          why: 'Reduces confusion and grading disputes.',
+          done: 'Key pages and assignment instructions reviewed for clarity (especially instructions); no major errors.',
+          oscqr: '3.20'
+        },
+        { 
+          id: 'design-layout', 
+          title: 'Ensure layout is uncluttered', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Improves readability and accessibility for all learners.',
+          done: 'Pages use scannable formatting with readable layout (white space, short paragraphs, bullets) and consistent styles.',
+          oscqr: '3.16-3.18'
+        },
+        { 
+          id: 'design-contrast', 
+          title: 'Confirm color contrast sufficient', 
+          time: '≤30m', 
+          owner: 'Designer',
+          when: 'Pre-launch QA',
+          why: 'Supports accessibility and readability.',
+          done: 'Spot-check key pages/slides; contrast issues addressed; color is not the only way to convey meaning.',
+          oscqr: '3.18'
+        }
+      ]
+    },
+    {
+      id: 'content',
+      title: '4. Content & Learning Materials',
+      tasks: [
+        { 
+          id: 'content-links', 
+          title: 'Verify all links work', 
+          time: '0.5-2h', 
+          owner: 'Designer',
+          when: 'Pre-launch QA',
+          why: 'Prevents broken-path frustration and access barriers.',
+          done: 'All links, textbooks, and external websites checked (and are accessible); broken links fixed or replaced.',
+          oscqr: '4.36, 1.3'
+        },
+        { 
+          id: 'content-formats', 
+          title: 'Prefer accessible formats', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Improves mobile access and assistive technology compatibility.',
+          done: 'Core readings/content are in accessible format for text content (HTML pages when possible; accessible PDFs when needed); PDFs are remediated if used.',
+          oscqr: '4.36'
+        },
+        { 
+          id: 'content-copyright', 
+          title: 'Add copyright/licensing notes', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Reduces legal risk and clarifies reuse permissions.',
+          done: 'Materials include attribution/licensing or a note on permitted use where applicable (and avoid uploading restricted textbook PDFs).',
+          oscqr: '4.34'
+        },
+        { 
+          id: 'content-oer', 
+          title: 'Use OER or low-cost options', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Improves affordability and access.',
+          done: 'Plan documented; library links (or library eBook access) or alternatives included if available where feasible.',
+          oscqr: '4.33'
+        },
+        { 
+          id: 'content-variety', 
+          title: 'Include variety of resources', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Supports different learning needs and keeps attention.',
+          done: 'Each module includes at least 2 engaging content types when appropriate (readings, short videos, interactive checks, examples).',
+          oscqr: '4.29'
+        },
+        { 
+          id: 'content-realworld', 
+          title: 'Add real-world application activity', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Promotes transfer to practice.',
+          done: 'At least one activity exists with clear prompt and evaluation method (case, scenario, problem-based task).',
+          oscqr: '4.31'
+        },
+        { 
+          id: 'content-reflection', 
+          title: 'Add reflection/analysis opportunities', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Supports deeper learning and metacognition.',
+          done: 'Prompt(s) included for higher-order thinking (discussion, journal, short write-up) with criteria.',
+          oscqr: '4.30, 6.47'
+        }
+      ]
+    },
+    {
+      id: 'interaction',
+      title: '5. Interaction & RSI',
+      tasks: [
+        { 
+          id: 'interaction-qa', 
+          title: "Create 'Ask a Question' space", 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Supports timely help and reduces duplicate emails.',
+          done: 'Q&A discussion space published; guidelines include how fast you respond and peer-help expectations.',
+          oscqr: '5.41',
+          rsi: 'Regular & Substantive Interaction: https://oscqr.suny.edu/rsi/',
+          tool: 'Canvas Discussion or FeedbackFruits Discussion',
+          toolPrompt: "Starter prompt: 'Post course questions here. Include module + screenshot if possible. Reply to one peer if you can.'"
+        },
+        { 
+          id: 'interaction-presence', 
+          title: 'Plan instructor presence cadence', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Makes interaction predictable and supports RSI expectations.',
+          done: 'A simple weekly plan documented for announcements and facilitation (weekly minimum) - e.g., Mon announcement, midweek check-in, grading schedule.',
+          oscqr: '5.38',
+          rsi: 'Regular & Substantive Interaction: https://oscqr.suny.edu/rsi/'
+        },
+        { 
+          id: 'interaction-discussion', 
+          title: 'State discussion expectations', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves participation quality and reduces ambiguity.',
+          done: 'Discussion instructions include interaction expectations for graded discussions (netiquette, frequency, quality, deadlines) + grading criteria.',
+          oscqr: '5.39, 6.46'
+        },
+        { 
+          id: 'interaction-community', 
+          title: 'Include community-building activity', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Builds trust and supports engagement early.',
+          done: 'At least one icebreaker or meet-your-classmates activity published in Start Here/Module 1 with clear instructions.',
+          oscqr: '5.40-5.41',
+          tool: 'FeedbackFruits Discussion (optional)',
+          toolPrompt: "Icebreaker prompt idea: 'Share your background + one goal for this course; reply to two peers with a question or resource.'"
+        },
+        { 
+          id: 'interaction-collaboration', 
+          title: 'Provide collaboration opportunity', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Supports collaboration and sense of community.',
+          done: 'At least one learner-to-learner collaboration activity is set up with clear roles and deliverables (peer review, group task, structured discussion).',
+          oscqr: '5.42',
+          tool: 'FeedbackFruits Peer Review',
+          toolPrompt: 'Provide a checklist rubric; prompt reviewers to give 1 strength + 1 suggestion + 1 question.'
+        },
+        { 
+          id: 'interaction-sources', 
+          title: 'Encourage outside sources', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Promotes inquiry and diversity of perspectives.',
+          done: "Instructions include 'cite a source or share an example from your context' expectation for learners to bring outside sources and perspectives into interactions.",
+          oscqr: '5.43'
+        },
+        { 
+          id: 'interaction-substantive', 
+          title: 'Ensure substantive interactions', 
+          time: 'Ongoing', 
+          owner: 'Instructor',
+          when: 'During teaching',
+          why: 'Meets RSI intent and improves learning quality.',
+          done: 'You provide substantive weekly interaction - feedback, guidance, content expertise (not just procedural) through announcements with guidance, feedback, targeted responses, etc.',
+          rsi: 'Regular & Substantive Interaction: https://oscqr.suny.edu/rsi/'
+        }
+      ]
+    },
+    {
+      id: 'assessment',
+      title: '6. Assessment, Outcomes & Feedback',
+      tasks: [
+        { 
+          id: 'assess-outcomes', 
+          title: 'Confirm outcomes clear and aligned', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Ensures coherence and supports program alignment.',
+          done: 'Course learning outcomes are clear, measurable, and aligned to activities/assessments; each outcome maps to at least one assessment.',
+          oscqr: '1.10'
+        },
+        { 
+          id: 'assess-list', 
+          title: 'List outcomes in syllabus/Canvas', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Makes learning targets visible and supports transparency.',
+          done: 'Outcomes visible in syllabus and course info/module overviews as appropriate (and module outcomes if used).',
+          oscqr: '1.10'
+        },
+        { 
+          id: 'assess-map', 
+          title: 'Map outcomes to assignments', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Supports competency tracking and consistent evaluation.',
+          done: 'Outcome map exists - document which assignments rate which outcomes/competencies (simple table or notes).',
+          oscqr: '1.10'
+        },
+        { 
+          id: 'assess-rubrics', 
+          title: 'Integrate outcomes into rubrics', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Allows rating competencies while grading in SpeedGrader.',
+          done: 'Outcome criteria are added to rubrics in Canvas for any assignment that maps to outcomes/competencies.',
+          oscqr: '1.10, 6.46'
+        },
+        { 
+          id: 'assess-scoring', 
+          title: 'Decide outcome scoring approach', 
+          time: '≤30m', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Prevents outcome ratings from unintentionally changing student grades.',
+          done: "For imported outcome criteria, 'Use this criterion for scoring' is set appropriately (usually: do not use for scoring).",
+          oscqr: '6.46'
+        },
+        { 
+          id: 'assess-essentials', 
+          title: 'Add assignment essentials', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Reduces student confusion and improves quality of submissions.',
+          done: 'For each assignment: student-facing essentials included - purpose, steps, deliverables, due date/time, submission, grading criteria/rubric, tech needs, integrity note; rubric attached when used.',
+          oscqr: '3.19, 6.46'
+        },
+        { 
+          id: 'assess-policies', 
+          title: 'Provide clear grading policies', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Prevents disputes and sets expectations.',
+          done: 'Policies stated in syllabus/course info (late work, regrades, participation, etc.).',
+          oscqr: '6.44'
+        },
+        { 
+          id: 'assess-frequent', 
+          title: 'Include frequent assessments', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Supports retrieval practice and learning monitoring.',
+          done: 'Frequent, appropriate assessments included (mix of low-stakes checks and graded assessments); each module includes at least one check-for-understanding where appropriate.',
+          oscqr: '6.45'
+        },
+        { 
+          id: 'assess-self', 
+          title: 'Provide self-assessment opportunities', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Helps learners monitor progress.',
+          done: 'At least one self-check exists (practice quiz, self-check, reflection).',
+          oscqr: '6.47'
+        },
+        { 
+          id: 'assess-gradebook', 
+          title: 'Ensure gradebook set up', 
+          time: '0.5-2h', 
+          owner: 'Designer',
+          when: 'Pre-launch QA',
+          why: 'Makes performance tracking transparent.',
+          done: 'Gradebook is accurate (assignment groups/weights, due dates, visibility); categories align with syllabus; totals calculate correctly.',
+          oscqr: '6.49'
+        },
+        { 
+          id: 'assess-feedback', 
+          title: 'Set feedback turnaround expectations', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Kickoff',
+          why: 'Supports learning and student planning; contributes to RSI.',
+          done: 'Turnaround times stated; plan for meeting them and follow through.',
+          oscqr: '5.38',
+          rsi: 'Regular & Substantive Interaction: https://oscqr.suny.edu/rsi/'
+        },
+        { 
+          id: 'assess-midcourse', 
+          title: 'Collect mid-course feedback', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'During teaching',
+          why: 'Enables timely improvements.',
+          done: 'Feedback mechanism exists on course design and tool usability (short survey or check-in) and you review results.',
+          oscqr: '6.50'
+        }
+      ]
+    },
+    {
+      id: 'accessibility',
+      title: '7. Accessibility & Compliance',
+      tasks: [
+        { 
+          id: 'a11y-headings', 
+          title: 'Use headings and built-in styles', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves screen reader navigation and scannability.',
+          done: 'Pages use Heading 2/3 for sections; structure is clear (avoid using size/bold alone for structure).',
+          oscqr: '3.22, 3.23'
+        },
+        { 
+          id: 'a11y-links', 
+          title: 'Use descriptive hyperlink text', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves accessibility and clarity.',
+          done: "Links describe destination; tested for clarity out of context (avoid 'click here').",
+          oscqr: '4.37'
+        },
+        { 
+          id: 'a11y-alt', 
+          title: 'Add alt text to images', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Ensures non-text info is accessible.',
+          done: 'Images have appropriate alt text to informative images (or mark decorative images as decorative).',
+          oscqr: '4.36'
+        },
+        { 
+          id: 'a11y-contrast', 
+          title: 'Ensure text readable without color', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Pre-launch QA',
+          why: 'Supports low-vision and mobile users.',
+          done: 'No directions rely on color alone; contrast is sufficient; contrast issues fixed.',
+          oscqr: '3.18, 4.36'
+        },
+        { 
+          id: 'a11y-animations', 
+          title: 'Avoid flashing/auto-advancing content', 
+          time: '≤30m', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Reduces cognitive load and seizure risk.',
+          done: 'No flashing/blinking; animations used only if essential and accessible; minimize animations.',
+          oscqr: '3.24'
+        },
+        { 
+          id: 'a11y-tables', 
+          title: 'Add table headers and summaries', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Supports screen reader interpretation.',
+          done: 'For tables: add header row/column and keep tables simple; provide a summary when needed; complex tables avoided or explained.',
+          oscqr: '3.26-3.28'
+        },
+        { 
+          id: 'a11y-slides', 
+          title: 'Format slides accessibly', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Improves accessibility and navigation.',
+          done: 'For slide decks: use a template/layout, unique slide titles, and simple transitions; slides use layout placeholders; each slide has a unique title; no auto transitions.',
+          oscqr: '3.27-3.28'
+        },
+        { 
+          id: 'a11y-media', 
+          title: 'Provide captions/transcripts', 
+          time: '2+ hrs', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Ensures access for deaf/hard-of-hearing and supports review.',
+          done: 'For video/audio: provide captions and/or transcripts; ensure media is accessible; captions/transcripts available and accurate.',
+          oscqr: '4.36'
+        },
+        { 
+          id: 'a11y-check', 
+          title: 'Run accessibility check', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Pre-launch QA',
+          why: 'Catches preventable barriers before launch.',
+          done: 'Run an accessibility check (Canvas/PPT/PDF as relevant) and resolve priority issues; top issues resolved; remaining issues documented with plan.',
+          oscqr: '2.15, 4.36'
+        }
+      ]
+    },
+    {
+      id: 'engagement',
+      title: '8. Engagement Tools (Optional)',
+      tasks: [
+        { 
+          id: 'engage-video', 
+          title: 'Make lectures interactive', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Improves attention and supports retrieval practice.',
+          done: 'If you use recorded lectures, consider making them interactive with in-video questions; interactive lecture is set up (or plan documented).',
+          oscqr: '4.29, 6.45',
+          rsi: 'Regular & Substantive Interaction: https://oscqr.suny.edu/rsi/',
+          tool: 'FeedbackFruits Interactive Video',
+          toolPrompt: 'Include 3-6 questions per 10-15 min: 1-2 recall, 1 concept check, 1 application, 1 reflection. Tell students how it is graded and whether they can retry.'
+        },
+        { 
+          id: 'engage-quiz', 
+          title: 'Add weekly knowledge checks', 
+          time: '0.5-2h', 
+          owner: 'Instructor',
+          when: 'Build',
+          why: 'Supports spaced retrieval and helps students self-monitor.',
+          done: 'Weekly low-stakes knowledge check aligned to outcomes; short quiz exists with feedback/explanations where feasible.',
+          oscqr: '6.45, 6.47',
+          tool: 'Canvas New Quizzes / Classic Quizzes',
+          toolPrompt: 'Include immediate feedback; allow multiple attempts for practice quizzes; reference the related outcome in instructions.'
+        },
+        { 
+          id: 'engage-peer', 
+          title: 'Use structured peer review', 
+          time: '0.5-2h', 
+          owner: 'Shared',
+          when: 'Build',
+          why: 'Improves quality and reduces grading load later.',
+          done: 'Use structured peer review for drafts (if major writing/project work); peer review workflow set with rubric and deadlines.',
+          oscqr: '5.42, 6.46',
+          tool: 'FeedbackFruits Peer Review',
+          toolPrompt: "Provide a simple rubric + sentence stems: 'One strength is…', 'One improvement is…', 'A question I have is…'."
+        }
+      ]
+    }
+  ];
+
+  const statusOptions = ['Not started', 'In progress', 'Done', 'Need ID support'];
+  const confidenceOptions = ['I can do it', 'Show me once', 'Do with me', 'Do for me'];
+
+  const getProgressStats = () => {
+    const allTasks = sections.flatMap(s => s.tasks);
+    const completed = allTasks.filter(t => tasks[t.id]?.status === 'Done').length;
+    return { total: allTasks.length, completed, percent: Math.round((completed / allTasks.length) * 100) };
+  };
+
+  const stats = getProgressStats();
+
+  const formatTimestamp = (iso) => {
+    const date = new Date(iso);
+    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  const getFilteredSections = () => {
+    return sections.map(section => ({
+      ...section,
+      tasks: section.tasks.filter(task => {
+        const phaseMatch = filterPhase === 'all' || task.when === filterPhase;
+        const ownerMatch = filterOwner === 'all' || task.owner === filterOwner || task.owner === 'Shared';
+        return phaseMatch && ownerMatch;
+      })
+    })).filter(section => section.tasks.length > 0);
+  };
+
+  const getKickoffAgendaItems = () => {
+    const agendaCategories = {
+      'Need ID support': [],
+      'Show me once': [],
+      'Do with me': [],
+      'Do for me': []
+    };
+
+    sections.forEach(section => {
+      section.tasks.forEach(task => {
+        const taskData = tasks[task.id];
+        if (taskData?.status === 'Need ID support') {
+          agendaCategories['Need ID support'].push({ ...task, section: section.title });
+        }
+        if (taskData?.confidence === 'Show me once') {
+          agendaCategories['Show me once'].push({ ...task, section: section.title });
+        }
+        if (taskData?.confidence === 'Do with me') {
+          agendaCategories['Do with me'].push({ ...task, section: section.title });
+        }
+        if (taskData?.confidence === 'Do for me') {
+          agendaCategories['Do for me'].push({ ...task, section: section.title });
+        }
+      });
+    });
+
+    return agendaCategories;
+  };
+
+  const filteredSections = getFilteredSections();
+  const agendaItems = getKickoffAgendaItems();
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-800 to-red-900 rounded-lg shadow-lg p-6 mb-6 text-white">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">
+                Instructor-Led Online Course Build Manual
+              </h1>
+              <p className="text-red-100">
+                Interactive planning guide for building or refreshing an online course
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveData}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-red-900 rounded-lg hover:bg-red-50 transition-colors font-medium"
+              >
+                <Save size={18} />
+                Save {saveStatus && <span className="ml-1">{saveStatus}</span>}
+              </button>
+              <button
+                onClick={exportData}
+                className="flex items-center gap-2 px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                <Download size={18} />
+                Export
+              </button>
+              <label className="flex items-center gap-2 px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+                <Upload size={18} />
+                Import
+                <input type="file" accept=".json" onChange={importData} className="hidden" />
+              </label>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-4">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="font-medium">Overall Progress</span>
+              <span className="text-red-100">{stats.completed} / {stats.total} tasks ({stats.percent}%)</span>
+            </div>
+            <div className="w-full bg-red-950 rounded-full h-3">
+              <div 
+                className="bg-white h-3 rounded-full transition-all duration-300"
+                style={{ width: `${stats.percent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Role Selector */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Your Role (for conversation feature)</label>
+          <div className="flex gap-4">
+            <button
+              onClick={() => setUserRole('instructor')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                userRole === 'instructor' 
+                  ? 'bg-red-800 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <User size={18} />
+              Instructor
+            </button>
+            <button
+              onClick={() => setUserRole('designer')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                userRole === 'designer' 
+                  ? 'bg-red-800 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Users size={18} />
+              Instructional Designer
+            </button>
+          </div>
+        </div>
+
+        {/* Filters and Kickoff Agenda Toggle */}
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Phase</label>
+              <select
+                value={filterPhase}
+                onChange={(e) => setFilterPhase(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              >
+                <option value="all">All Phases</option>
+                <option value="Kickoff">Kickoff</option>
+                <option value="Build">Build</option>
+                <option value="Pre-launch QA">Pre-launch QA</option>
+                <option value="During teaching">During teaching</option>
+              </select>
+            </div>
+
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Owner</label>
+              <select
+                value={filterOwner}
+                onChange={(e) => setFilterOwner(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              >
+                <option value="all">All Roles</option>
+                <option value="Instructor">Instructor</option>
+                <option value="Designer">Designer</option>
+                <option value="Shared">Shared</option>
+              </select>
+            </div>
+
+            <div className="flex-1 min-w-[200px]">
+              <button
+                onClick={() => setShowKickoffAgenda(!showKickoffAgenda)}
+                className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                  showKickoffAgenda
+                    ? 'bg-red-800 text-white hover:bg-red-900'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {showKickoffAgenda ? '📋 View All Tasks' : '📋 View Kickoff Agenda'}
+              </button>
+            </div>
+          </div>
+
+          {(filterPhase !== 'all' || filterOwner !== 'all') && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-sm text-gray-600">Active filters:</span>
+              {filterPhase !== 'all' && (
+                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">
+                  Phase: {filterPhase}
+                </span>
+              )}
+              {filterOwner !== 'all' && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                  Owner: {filterOwner}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setFilterPhase('all');
+                  setFilterOwner('all');
+                }}
+                className="text-xs text-red-800 hover:underline ml-2"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Kickoff Agenda View */}
+        {showKickoffAgenda ? (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">📋 Kickoff Meeting Agenda</h2>
+            <p className="text-gray-600 mb-6">
+              Auto-generated based on your task selections. Items marked for collaboration or support will be discussed in your kickoff meeting.
+            </p>
+
+            {Object.entries(agendaItems).map(([category, items]) => (
+              items.length > 0 && (
+                <div key={category} className="mb-6">
+                  <h3 className="text-lg font-bold text-red-800 mb-3 flex items-center gap-2">
+                    {category === 'Need ID support' && '🆘'}
+                    {category === 'Show me once' && '👁️'}
+                    {category === 'Do with me' && '🤝'}
+                    {category === 'Do for me' && '✋'}
+                    {category}
+                    <span className="text-sm font-normal text-gray-600">({items.length} items)</span>
+                  </h3>
+                  <div className="space-y-2">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{item.title}</h4>
+                            <p className="text-xs text-gray-500 mt-1">{item.section}</p>
+                            <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                              <span className="bg-gray-100 px-2 py-1 rounded">⏱️ {item.time}</span>
+                              <span className="bg-blue-50 px-2 py-1 rounded">👤 {item.owner}</span>
+                              <span className="bg-purple-50 px-2 py-1 rounded">📅 {item.when}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setShowKickoffAgenda(false);
+                              setExpandedSections(prev => ({ ...prev, [item.section.split('.')[0].toLowerCase().replace(/ & /g, '').replace(/ /g, '')]: true }));
+                              setExpandedTasks(prev => ({ ...prev, [item.id]: true }));
+                            }}
+                            className="text-red-800 hover:text-red-900 text-sm ml-4"
+                          >
+                            View →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ))}
+
+            {Object.values(agendaItems).every(items => items.length === 0) && (
+              <div className="text-center py-8 text-gray-500">
+                <p className="text-lg mb-2">No agenda items yet!</p>
+                <p className="text-sm">Mark tasks as "Need ID support" or set confidence levels to populate your kickoff agenda.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Course Snapshot */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Course Snapshot</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
+              <input
+                type="text"
+                value={snapshot.courseName}
+                onChange={(e) => updateSnapshot('courseName', e.target.value)}
+                placeholder="e.g., PHPM 640 – Health Policy & Politics"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Term / Dates</label>
+              <input
+                type="text"
+                value={snapshot.termDates}
+                onChange={(e) => updateSnapshot('termDates', e.target.value)}
+                placeholder="e.g., Spring 2026 | Start: 2026-01-15"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor(s)</label>
+              <input
+                type="text"
+                value={snapshot.instructors}
+                onChange={(e) => updateSnapshot('instructors', e.target.value)}
+                placeholder="Name(s) + email(s)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructional Designer</label>
+              <input
+                type="text"
+                value={snapshot.designer}
+                onChange={(e) => updateSnapshot('designer', e.target.value)}
+                placeholder="Name + email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Canvas Link</label>
+              <input
+                type="text"
+                value={snapshot.canvasLink}
+                onChange={(e) => updateSnapshot('canvasLink', e.target.value)}
+                placeholder="https://..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Primary Modality</label>
+              <select
+                value={snapshot.modality}
+                onChange={(e) => updateSnapshot('modality', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              >
+                <option value="">Select...</option>
+                <option value="Asynchronous">Asynchronous</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="Online w/ sync sessions">Online w/ sync sessions</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Build Start Date</label>
+              <input
+                type="date"
+                value={snapshot.buildStart}
+                onChange={(e) => updateSnapshot('buildStart', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target "Student-Ready" Date</label>
+              <input
+                type="date"
+                value={snapshot.targetReady}
+                onChange={(e) => updateSnapshot('targetReady', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes / Constraints</label>
+              <textarea
+                value={snapshot.notes}
+                onChange={(e) => updateSnapshot('notes', e.target.value)}
+                placeholder="e.g., co-teaching, new TA, new tool, prior shell reuse"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Task Sections */}
+        {filteredSections.map((section) => (
+          <div key={section.id} className="bg-white rounded-lg shadow-sm mb-4">
+            <button
+              onClick={() => toggleSection(section.id)}
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {expandedSections[section.id] ? <ChevronDown size={20} className="text-red-800" /> : <ChevronRight size={20} className="text-red-800" />}
+                <h3 className="text-lg font-bold text-gray-900">{section.title}</h3>
+                <span className="text-sm text-gray-500">
+                  ({section.tasks.filter(t => tasks[t.id]?.status === 'Done').length}/{section.tasks.length} complete)
+                </span>
+              </div>
+            </button>
+
+            {expandedSections[section.id] && (
+              <div className="px-6 pb-4">
+                {section.tasks.map((task) => (
+                  <div key={task.id} className="border-t border-gray-100 py-4">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => updateTask(task.id, 'status', tasks[task.id]?.status === 'Done' ? 'Not started' : 'Done')}
+                        className="mt-1 flex-shrink-0"
+                      >
+                        {tasks[task.id]?.status === 'Done' ? (
+                          <CheckCircle2 className="text-green-600" size={20} />
+                        ) : (
+                          <Circle className="text-gray-300" size={20} />
+                        )}
+                      </button>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-medium text-gray-900 mb-1">{task.title}</h4>
+                          <button
+                            onClick={() => toggleTaskDetails(task.id)}
+                            className="text-red-800 hover:text-red-900 p-1"
+                            title="Show details"
+                          >
+                            <Info size={18} />
+                          </button>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3">
+                          <span className="bg-gray-100 px-2 py-1 rounded">⏱️ {task.time}</span>
+                          <span className="bg-blue-50 px-2 py-1 rounded">👤 {task.owner}</span>
+                          <span className="bg-purple-50 px-2 py-1 rounded">📅 {task.when}</span>
+                          {task.oscqr && <span className="bg-green-50 px-2 py-1 rounded">📋 OSCQR {task.oscqr}</span>}
+                          {task.rsi && <span className="bg-red-50 px-2 py-1 rounded">🔄 RSI</span>}
+                        </div>
+
+                        {/* Task Details */}
+                        {expandedTasks[task.id] && (
+                          <div className="bg-gray-50 p-4 rounded-lg mb-3 space-y-2 text-sm">
+                            <div>
+                              <span className="font-semibold text-gray-700">Why this matters:</span>
+                              <p className="text-gray-600 mt-1">{task.why}</p>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700">Definition of done:</span>
+                              <p className="text-gray-600 mt-1">{task.done}</p>
+                            </div>
+                            {task.rsi && (
+                              <div>
+                                <span className="font-semibold text-red-700">RSI Reference:</span>
+                                <p className="text-gray-600 mt-1">
+                                  <a href="https://oscqr.suny.edu/rsi/" target="_blank" rel="noopener noreferrer" className="text-red-800 hover:underline">
+                                    Regular & Substantive Interaction guidance
+                                  </a>
+                                </p>
+                              </div>
+                            )}
+                            {task.tool && (
+                              <div>
+                                <span className="font-semibold text-gray-700">Suggested tool:</span>
+                                <p className="text-gray-600 mt-1">{task.tool}</p>
+                              </div>
+                            )}
+                            {task.toolPrompt && (
+                              <div>
+                                <span className="font-semibold text-gray-700">Tool prompt / guidance:</span>
+                                <p className="text-gray-600 mt-1 italic">{task.toolPrompt}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                            <select
+                              value={tasks[task.id]?.status || 'Not started'}
+                              onChange={(e) => updateTask(task.id, 'status', e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                            >
+                              {statusOptions.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Confidence</label>
+                            <select
+                              value={tasks[task.id]?.confidence || 'I can do it'}
+                              onChange={(e) => updateTask(task.id, 'confidence', e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                            >
+                              {confidenceOptions.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Conversation Thread */}
+                        <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Users size={14} className="text-gray-500" />
+                            <span className="text-xs font-medium text-gray-700">Conversation (Instructor ↔ Designer)</span>
+                          </div>
+                          
+                          {/* Messages */}
+                          {tasks[task.id]?.messages && tasks[task.id].messages.length > 0 && (
+                            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+                              {tasks[task.id].messages.map((msg) => (
+                                <div 
+                                  key={msg.id} 
+                                  className={`text-xs p-2 rounded ${
+                                    msg.role === 'instructor' 
+                                      ? 'bg-blue-50 border-l-2 border-blue-400' 
+                                      : 'bg-green-50 border-l-2 border-green-400'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-semibold text-gray-700">
+                                      {msg.role === 'instructor' ? '👨‍🏫 Instructor' : '👥 Designer'}
+                                    </span>
+                                    <span className="text-gray-500 text-xs">{formatTimestamp(msg.timestamp)}</span>
+                                  </div>
+                                  <p className="text-gray-700">{msg.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* New Message Input */}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newMessage[task.id] || ''}
+                              onChange={(e) => setNewMessage(prev => ({ ...prev, [task.id]: e.target.value }))}
+                              onKeyPress={(e) => e.key === 'Enter' && sendMessage(task.id)}
+                              placeholder={`Type question or note as ${userRole}...`}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-red-800 focus:border-transparent"
+                            />
+                            <button
+                              onClick={() => sendMessage(task.id)}
+                              className="px-3 py-1 bg-red-800 text-white rounded hover:bg-red-900 transition-colors"
+                            >
+                              <Send size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {filteredSections.length === 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
+            <p className="text-lg mb-2">No tasks match your filters</p>
+            <p className="text-sm">Try adjusting your phase or owner filters above.</p>
+          </div>
+        )}
+        </>
+        )}
+
+        {/* Footer */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mt-6 text-center text-sm text-gray-600">
+          <p className="mb-2">💾 <strong>Remember to save your progress regularly!</strong> Your data is stored locally in your browser.</p>
+          <p className="mb-2">💬 <strong>Conversation feature:</strong> Use the chat box in each task to ask questions and exchange feedback with your instructional designer.</p>
+          <p>📥 Export your work to back it up or share with your instructional designer.</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CourseBuildManual
